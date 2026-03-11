@@ -56,11 +56,11 @@ const sections: NavSection[] = [
     title: "MARKET TOOLS",
     defaultOpen: true,
     items: [
-      { label: "Fear & Greed", href: "/tools/fear-greed", icon: Activity, soon: true },
-      { label: "BTC Dominance", href: "/tools/btc-dominance", icon: TrendingUp, soon: true },
-      { label: "Heatmap", href: "/tools/heatmap", icon: Grid3X3, soon: true },
-      { label: "Altcoin Season", href: "/tools/altcoin-season", icon: Layers, soon: true },
-      { label: "Liquidations", href: "/tools/liquidations", icon: AlertTriangle, soon: true },
+      { label: "Fear & Greed", href: "/tools/fear-greed", icon: Activity },
+      { label: "BTC Dominance", href: "/tools/btc-dominance", icon: TrendingUp },
+      { label: "Heatmap", href: "/tools/heatmap", icon: Grid3X3 },
+      { label: "Altcoin Season", href: "/tools/altcoin-season", icon: Layers },
+      { label: "Liquidations", href: "/tools/liquidations", icon: AlertTriangle },
     ],
   },
   {
