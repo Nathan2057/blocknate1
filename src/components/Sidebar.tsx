@@ -77,7 +77,7 @@ const sections: NavSection[] = [
     defaultOpen: true,
     items: [
       { label: "Portfolio", href: "/portfolio", icon: PieChart },
-      { label: "Settings", href: "/settings", icon: Settings, soon: true },
+      { label: "Settings", href: "/settings", icon: Settings },
     ],
   },
   {
