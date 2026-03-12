@@ -177,7 +177,7 @@ export default function AuthPage() {
     e.preventDefault();
     setForgotLoading(true);
     const { error } = await supabase!.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+      redirectTo: "https://blocknate1.vercel.app/auth/callback",
     });
     setForgotLoading(false);
     if (error) { setForgotMsg(`Error: ${error.message}`); return; }
