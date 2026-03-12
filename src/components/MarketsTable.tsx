@@ -24,8 +24,9 @@ interface MarketsTableProps {
   onDataLoaded?: (data: Coin[]) => void;
 }
 
-function Sparkline({ prices, positive }: { prices: number[]; positive: boolean }) {
-  if (!prices || prices.length < 2) return <div style={{ width: 80, height: 32 }} />;
+function Sparkline({ prices: rawPrices, positive }: { prices: number[]; positive: boolean }) {
+  const prices = (rawPrices ?? []).filter((p) => p !== null && p !== undefined && !isNaN(p));
+  if (prices.length < 2) return <div style={{ width: 80, height: 32 }} />;
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const range = max - min || 1;

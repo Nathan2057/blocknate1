@@ -16,7 +16,8 @@ const FALLBACK: TickerCoin[] = [
   { symbol: "XRP", price: 0.62, change: -1.2 },
 ];
 
-function formatPrice(p: number) {
+function formatPrice(p: number | null | undefined) {
+  if (p === null || p === undefined || isNaN(p)) return "0.00";
   if (p >= 1000) return p.toLocaleString("en-US", { maximumFractionDigits: 0 });
   if (p >= 1) return p.toFixed(2);
   return p.toFixed(4);
@@ -62,8 +63,8 @@ export default function TickerStrip() {
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 28px", borderRight: "1px solid #1C223640", height: "100%" }}>
             <span style={{ color: "#4A5568", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.06em" }}>{coin.symbol}</span>
             <span style={{ color: "#E8ECF4", fontSize: "0.8rem", fontWeight: 600 }}>${formatPrice(coin.price)}</span>
-            <span style={{ color: coin.change >= 0 ? "#00C896" : "#FF3B5C", fontSize: "0.72rem", fontWeight: 600 }}>
-              {coin.change >= 0 ? "+" : ""}{coin.change.toFixed(2)}%
+            <span style={{ color: (coin.change ?? 0) >= 0 ? "#00C896" : "#FF3B5C", fontSize: "0.72rem", fontWeight: 600 }}>
+              {(coin.change ?? 0) >= 0 ? "+" : ""}{(coin.change ?? 0).toFixed(2)}%
             </span>
           </div>
         ))}

@@ -186,7 +186,7 @@ export default function AltcoinSeasonPage() {
                   </div>
                 </div>
                 <span style={{ color: "#00C896", fontWeight: 700, fontSize: "0.88rem" }}>
-                  +{pct24h(coin).toFixed(2)}%
+                  +{(pct24h(coin) ?? 0).toFixed(2)}%
                 </span>
               </div>
             ))}
@@ -208,7 +208,7 @@ export default function AltcoinSeasonPage() {
                   </div>
                 </div>
                 <span style={{ color: "#FF3B5C", fontWeight: 700, fontSize: "0.88rem" }}>
-                  {pct24h(coin).toFixed(2)}%
+                  {(pct24h(coin) ?? 0).toFixed(2)}%
                 </span>
               </div>
             ))}
