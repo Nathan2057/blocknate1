@@ -59,7 +59,9 @@ export default function FeaturesSection() {
   const { ref, inView } = useInView();
 
   return (
-    <section id="features" style={{ padding: "100px 24px" }}>
+    <section id="features" style={{ padding: "100px 24px", background: "linear-gradient(180deg, #06080F 0%, #080C14 50%, #06080F 100%)" }}>
+      {/* Glow lines */}
+      <div style={{ height: 1, background: "linear-gradient(90deg, transparent, #0066FF, transparent)", opacity: 0.4, animation: "glow-line 3s ease-in-out infinite" }} />
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
         <div ref={ref} style={{
@@ -89,6 +91,7 @@ export default function FeaturesSection() {
           ))}
         </div>
       </div>
+      <div style={{ height: 1, background: "linear-gradient(90deg, transparent, #0066FF, transparent)", opacity: 0.4, animation: "glow-line 3s ease-in-out infinite 1.5s" }} />
     </section>
   );
 }

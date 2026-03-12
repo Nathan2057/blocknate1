@@ -9,15 +9,25 @@ export default function CTABanner() {
   return (
     <section style={{ padding: "0 24px 100px" }}>
       <div ref={ref} style={{
-        maxWidth: 900, margin: "0 auto",
-        background: "rgba(0,102,255,0.06)",
-        border: "1px solid rgba(0,102,255,0.2)",
-        borderRadius: 8,
-        padding: "80px 40px",
-        textAlign: "center",
+        maxWidth: 900, margin: "0 auto", position: "relative",
         opacity: inView ? 1 : 0,
         transform: inView ? "translateY(0)" : "translateY(30px)",
         transition: "opacity 0.6s ease, transform 0.6s ease",
+      }}>
+        {/* Animated border glow */}
+        <div style={{
+          position: "absolute", inset: -1, borderRadius: 8,
+          background: "linear-gradient(135deg, rgba(0,102,255,0.5), rgba(0,200,150,0.3), rgba(0,102,255,0.5))",
+          backgroundSize: "200% 200%",
+          animation: "gradient-shift 4s ease infinite",
+          zIndex: 0,
+        }} />
+      <div style={{
+        position: "relative", zIndex: 1,
+        background: "linear-gradient(135deg, rgba(0,102,255,0.08) 0%, rgba(0,200,150,0.05) 100%)",
+        borderRadius: 8,
+        padding: "80px 40px",
+        textAlign: "center",
       }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
           <div style={{ position: "relative", width: 12, height: 12 }}>
@@ -52,6 +62,7 @@ export default function CTABanner() {
           </Link>
         </div>
         <p style={{ color: "#4A5568", fontSize: "0.72rem" }}>No credit card required · Always free</p>
+      </div>
       </div>
     </section>
   );

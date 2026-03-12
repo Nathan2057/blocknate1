@@ -19,6 +19,8 @@ export default function SignalPreview() {
       background: "#080C14",
       borderTop: "1px solid #1C2236",
       borderBottom: "1px solid #1C2236",
+      borderLeft: "3px solid #0066FF",
+      boxShadow: "inset 4px 0 20px rgba(0,102,255,0.1)",
     }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
         {/* Left */}
@@ -71,6 +73,12 @@ export default function SignalPreview() {
           transform: rightIn ? "translateX(0)" : "translateX(40px)",
           transition: "opacity 0.7s ease, transform 0.7s ease",
         }}>
+          {/* Glow behind cards */}
+          <div style={{
+            position: "absolute", inset: -20,
+            background: "radial-gradient(circle, rgba(0,102,255,0.15) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }} />
           {[...CARDS].reverse().map((card, i) => (
             <div key={card.symbol} style={{
               position: "absolute", left: "50%",
