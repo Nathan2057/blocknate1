@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import {
   LayoutDashboard,
   Zap,
@@ -94,11 +95,21 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
     sections.forEach((s) => { init[s.title] = s.defaultOpen ?? true; });
     return init;
   });
+
+  useEffect(() => {
+    supabase!.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase!.from("profiles").select("role").eq("id", user.id).single().then(({ data }) => {
+        setIsAdmin(["admin", "super_admin"].includes(data?.role ?? ""));
+      });
+    });
+  }, []);
 
   function toggleSection(title: string) {
     setOpenSections((prev) => ({ ...prev, [title]: !prev[title] }));
@@ -204,7 +215,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Nav sections */}
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 0" }}>
-        {sections.map((section) => {
+        {sections.filter((s) => s.title !== "ADMIN" || isAdmin).map((section) => {
           const isOpen = openSections[section.title];
           return (
             <div key={section.title} style={{ marginBottom: 4 }}>

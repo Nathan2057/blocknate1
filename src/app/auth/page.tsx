@@ -150,8 +150,15 @@ export default function AuthPage() {
     e.preventDefault();
     setSiError("");
     setSiLoading(true);
-    const { error } = await supabase!.auth.signInWithPassword({ email: siEmail, password: siPw });
+    const { data, error } = await supabase!.auth.signInWithPassword({ email: siEmail, password: siPw });
     if (error) { setSiError(mapError(error.message)); setSiLoading(false); return; }
+    const { data: profile } = await supabase!.from("profiles").select("is_banned, banned_reason").eq("id", data.user!.id).single();
+    if (profile?.is_banned) {
+      await supabase!.auth.signOut();
+      setSiError(`Your account has been suspended. Reason: ${profile.banned_reason || "Violation of terms"}`);
+      setSiLoading(false);
+      return;
+    }
     router.push("/dashboard");
   }
 
