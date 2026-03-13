@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Blocknate — Professional Crypto Trading Signals",
     description: "Automated crypto trading signals powered by technical analysis. Live charts, market tools, news and education.",
-    url: "https://blocknate1.vercel.app",
+    url: "https://blocknate.vercel.app",
     siteName: "Blocknate",
     type: "website",
   },

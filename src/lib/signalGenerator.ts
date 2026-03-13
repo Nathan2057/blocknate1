@@ -32,7 +32,7 @@ async function fetchCandles(
   interval = "4h",
   limit = 250
 ): Promise<OHLCV[]> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://blocknate1.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://blocknate.vercel.app";
 
   const endpoints = [
     // Internal proxy first — avoids Vercel→Binance blocking

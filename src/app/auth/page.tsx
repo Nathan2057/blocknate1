@@ -1,6 +1,6 @@
 // IMPORTANT: In Supabase Dashboard → Authentication → URL Configuration
-// Set Site URL to: https://blocknate1.vercel.app
-// Add Redirect URLs: https://blocknate1.vercel.app/auth/callback
+// Set Site URL to: https://blocknate.vercel.app
+// Add Redirect URLs: https://blocknate.vercel.app/auth/callback
 "use client";
 
 import { useEffect, useState } from "react";
