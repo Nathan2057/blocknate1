@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { generateSignalsBrowser, updateSignalStatusBrowser } from "@/lib/clientSignalGenerator";
 
 /* ─── Constants ─── */
 const API_SECRET = "blocknate_secret_2025";
@@ -812,6 +813,7 @@ function SignalsTab() {
   const [generating, setGenerating] = useState(false);
   const [forceGenerating, setForceGenerating] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [generateProgress, setGenerateProgress] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchSignals = useCallback(() => {
@@ -824,29 +826,29 @@ function SignalsTab() {
 
   async function runGenerate(force = false) {
     const setter = force ? setForceGenerating : setGenerating;
-    setter(true); setGenerateMsg(null);
+    setter(true); setGenerateMsg(null); setGenerateProgress([]);
     try {
-      const url = `/api/generate-signals?secret=${API_SECRET}${force ? "&force=true" : ""}`;
-      const res = await fetch(url);
-      const json = await res.json().catch(() => ({}));
-      setGenerateMsg({ text: json.message ?? (res.ok ? "Success" : "Error"), ok: res.ok });
-      if (res.ok) fetchSignals();
-    } catch { setGenerateMsg({ text: "Network error", ok: false }); }
+      const result = await generateSignalsBrowser(
+        force,
+        (msg) => setGenerateProgress((prev) => [...prev, msg])
+      );
+      setGenerateMsg({ text: result.message, ok: result.success });
+      if (result.success) fetchSignals();
+    } catch (err) {
+      setGenerateMsg({ text: `Error: ${String(err)}`, ok: false });
+    }
     setter(false);
   }
 
   async function runUpdate() {
     setUpdating(true); setUpdateMsg(null);
     try {
-      const res = await fetch(`/api/update-signal-status?secret=${API_SECRET}`);
-      const json = await res.json().catch(() => ({}));
-      const tpTotal = (json.tp1Hit ?? 0) + (json.tp2Hit ?? 0) + (json.tp3Hit ?? 0);
-      const text = res.ok
-        ? `✅ Updated ${json.updated ?? 0} signals (TP: ${tpTotal}, SL: ${json.slHit ?? 0})`
-        : json.message ?? "Error";
-      setUpdateMsg({ text, ok: res.ok });
-      if (res.ok) fetchSignals();
-    } catch { setUpdateMsg({ text: "Network error", ok: false }); }
+      const result = await updateSignalStatusBrowser();
+      setUpdateMsg({ text: result.message, ok: result.success });
+      if (result.success) fetchSignals();
+    } catch (err) {
+      setUpdateMsg({ text: `Error: ${String(err)}`, ok: false });
+    }
     setUpdating(false);
   }
 
@@ -894,6 +896,13 @@ function SignalsTab() {
             {forceGenerating ? "Generating..." : "⚡ Force Generate"}
           </button>
         </div>
+        {(generating || forceGenerating) && generateProgress.length > 0 && (
+          <div style={{ background: "#080C14", border: "1px solid #1C2236", borderRadius: 3, padding: 12, marginBottom: 6, maxHeight: 150, overflowY: "auto", fontFamily: "monospace", fontSize: "0.72rem" }}>
+            {generateProgress.map((msg, i) => (
+              <div key={i} style={{ color: msg.includes("✅") ? "#00C896" : msg.includes("❌") ? "#FF3B5C" : "#8892A4", marginBottom: 2 }}>{msg}</div>
+            ))}
+          </div>
+        )}
         {generateMsg && (
           <div style={{ padding: "7px 12px", background: generateMsg.ok ? "rgba(0,200,150,0.06)" : "rgba(255,59,92,0.06)", border: `1px solid ${generateMsg.ok ? "rgba(0,200,150,0.3)" : "rgba(255,59,92,0.3)"}`, borderRadius: 3, color: generateMsg.ok ? "#00C896" : "#FF3B5C", fontSize: "0.78rem", marginBottom: 6 }}>
             {generateMsg.ok ? `✅ ${generateMsg.text}` : generateMsg.text}
