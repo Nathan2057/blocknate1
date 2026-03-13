@@ -69,6 +69,11 @@ export async function generateSignalBatch(force = false): Promise<{
   const errors: string[] = [];
   const skipped: string[] = [];
 
+  console.log("=== SIGNAL GENERATION START ===");
+  console.log("Session ID:", sessionId);
+  console.log("Today:", todayStr);
+  console.log("Pair pool size:", PAIR_POOL.length);
+
   // Check if session already exists and is active (skip when force=true)
   if (!force) {
     const { data: existingSession } = await supabase
@@ -99,8 +104,11 @@ export async function generateSignalBatch(force = false): Promise<{
     ((todaySignals ?? []) as { pair: string }[]).map((s) => s.pair)
   );
 
+  console.log("Used today:", Array.from(usedToday));
+
   // Available = pool minus today's used
   const available = PAIR_POOL.filter((p) => !usedToday.has(p));
+  console.log("Available pairs:", available.length, available);
 
   if (available.length < 5) {
     return {
@@ -191,6 +199,8 @@ export async function generateSignalBatch(force = false): Promise<{
 
     selectedPairs.push(pair);
   }
+
+  console.log("=== GENERATION RESULT ===", { created: createdSignals.length, skipped, errors });
 
   if (createdSignals.length === 0) {
     return {
