@@ -22,13 +22,19 @@ async function fetchCandles(
   limit = 250
 ): Promise<OHLCV[]> {
   try {
-    const res = await fetch(
-      `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return [];
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    console.log(`Fetching candles: ${symbol}`);
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) {
+      console.error(`Binance error for ${symbol}: ${res.status} ${res.statusText}`);
+      return [];
+    }
     const data = await res.json();
-    if (!Array.isArray(data)) return [];
+    if (!Array.isArray(data)) {
+      console.error(`Invalid response for ${symbol}:`, typeof data);
+      return [];
+    }
+    console.log(`Got ${data.length} candles for ${symbol}`);
     return data.map((k: unknown[]) => ({
       timestamp: k[0] as number,
       open: parseFloat(k[1] as string),
@@ -37,7 +43,8 @@ async function fetchCandles(
       close: parseFloat(k[4] as string),
       volume: parseFloat(k[5] as string),
     }));
-  } catch {
+  } catch (err) {
+    console.error(`fetchCandles error for ${symbol}:`, err);
     return [];
   }
 }
@@ -110,68 +117,79 @@ export async function generateSignalBatch(force = false): Promise<{
   const selectedPairs: string[] = [];
   const createdSignals: Record<string, unknown>[] = [];
 
-  for (const pair of shuffled) {
-    if (selectedPairs.length >= 5) break;
+  // Score up to 15 pairs, then pick the top 5 by confidence
+  type ScoredPair = { pair: string; analysis: NonNullable<ReturnType<typeof analyzeSignal>>; candles: OHLCV[] };
+  const scoredPairs: ScoredPair[] = [];
 
+  console.log(`Scoring ${Math.min(shuffled.length, 15)} pairs for session ${sessionId}...`);
+
+  for (const pair of shuffled.slice(0, 15)) {
     try {
       const candles = await fetchCandles(pair, "4h", 250);
-      if (candles.length < 100) {
-        skipped.push(`${pair}: insufficient candles (${candles.length})`);
+      if (candles.length < 50) {
+        skipped.push(`${pair}: only ${candles.length} candles`);
         continue;
       }
-
       const analysis = analyzeSignal(candles);
-
       if (!analysis) {
-        skipped.push(`${pair}: no clear signal`);
+        skipped.push(`${pair}: null analysis`);
         continue;
       }
-
-      const price = candles[candles.length - 1].close;
-      const symbol = pair.replace("USDT", "");
-      const sessionEnd = new Date(Date.now() + 4 * 60 * 60 * 1000);
-
-      createdSignals.push({
-        pair,
-        symbol,
-        direction: analysis.direction,
-        timeframe: "4H",
-        entry_price: price,
-        current_price: price,
-        tp1: parseFloat(analysis.tp1.toFixed(8)),
-        tp2: parseFloat(analysis.tp2.toFixed(8)),
-        tp3: parseFloat(analysis.tp3.toFixed(8)),
-        sl: parseFloat(analysis.sl.toFixed(8)),
-        confidence: analysis.confidence,
-        leverage: analysis.leverage,
-        risk_level: analysis.riskLevel,
-        rsi: analysis.rsi ? parseFloat(analysis.rsi.toFixed(2)) : null,
-        macd_histogram: analysis.macdHistogram
-          ? parseFloat(analysis.macdHistogram.toFixed(6))
-          : null,
-        ema_trend: analysis.emaTrend,
-        atr: analysis.atr ? parseFloat(analysis.atr.toFixed(8)) : null,
-        volume_ratio: analysis.volumeRatio
-          ? parseFloat(analysis.volumeRatio.toFixed(2))
-          : null,
-        bb_position: analysis.bbPosition,
-        analysis: `${analysis.direction} on ${pair} — ${analysis.confidence}% confidence. ${analysis.reasons.slice(0, 3).join(". ")}.`,
-        reasons: analysis.reasons,
-        session_id: sessionId,
-        session_start: new Date().toISOString(),
-        session_end: sessionEnd.toISOString(),
-        status: "ACTIVE",
-        hit_tp1: false,
-        hit_tp2: false,
-        hit_tp3: false,
-        hit_sl: false,
-      });
-
-      selectedPairs.push(pair);
-      await new Promise((r) => setTimeout(r, 200));
+      console.log(`${pair}: ${analysis.direction} confidence=${analysis.confidence}`);
+      scoredPairs.push({ pair, analysis, candles });
+      await new Promise((r) => setTimeout(r, 150));
     } catch (err) {
       errors.push(`${pair}: ${String(err)}`);
     }
+  }
+
+  // Sort by confidence descending, pick top 5
+  scoredPairs.sort((a, b) => b.analysis.confidence - a.analysis.confidence);
+  const top5 = scoredPairs.slice(0, 5);
+  console.log(`Selected top ${top5.length} pairs:`, top5.map((p) => `${p.pair}(${p.analysis.confidence}%)`).join(", "));
+
+  for (const { pair, analysis, candles } of top5) {
+    const price = candles[candles.length - 1].close;
+    const symbol = pair.replace("USDT", "");
+    const sessionEnd = new Date(Date.now() + 4 * 60 * 60 * 1000);
+
+    createdSignals.push({
+      pair,
+      symbol,
+      direction: analysis.direction,
+      timeframe: "4H",
+      entry_price: price,
+      current_price: price,
+      tp1: parseFloat(analysis.tp1.toFixed(8)),
+      tp2: parseFloat(analysis.tp2.toFixed(8)),
+      tp3: parseFloat(analysis.tp3.toFixed(8)),
+      sl: parseFloat(analysis.sl.toFixed(8)),
+      confidence: analysis.confidence,
+      leverage: analysis.leverage,
+      risk_level: analysis.riskLevel,
+      rsi: analysis.rsi ? parseFloat(analysis.rsi.toFixed(2)) : null,
+      macd_histogram: analysis.macdHistogram
+        ? parseFloat(analysis.macdHistogram.toFixed(6))
+        : null,
+      ema_trend: analysis.emaTrend,
+      atr: analysis.atr ? parseFloat(analysis.atr.toFixed(8)) : null,
+      volume_ratio: analysis.volumeRatio
+        ? parseFloat(analysis.volumeRatio.toFixed(2))
+        : null,
+      bb_position: analysis.bbPosition,
+      analysis: `${analysis.direction} on ${pair} — ${analysis.confidence}% confidence. ${analysis.reasons.slice(0, 3).join(". ")}.`,
+      reasons: analysis.reasons,
+      session_id: sessionId,
+      session_start: new Date().toISOString(),
+      session_end: sessionEnd.toISOString(),
+      status: "ACTIVE",
+      hit_tp1: false,
+      hit_tp2: false,
+      hit_tp3: false,
+      hit_sl: false,
+    });
+
+    selectedPairs.push(pair);
   }
 
   if (createdSignals.length === 0) {

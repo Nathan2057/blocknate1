@@ -15,5 +15,9 @@ export async function GET(req: NextRequest) {
   const result = await generateSignalBatch(force);
   const duration = ((Date.now() - start) / 1000).toFixed(1);
 
-  return NextResponse.json({ ...result, duration: `${duration}s` });
+  return NextResponse.json({
+    ...result,
+    duration: `${duration}s`,
+    debug: { skipped: result.skipped, errors: result.errors },
+  });
 }

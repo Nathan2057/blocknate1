@@ -99,7 +99,7 @@ export function calcVolumeRatio(candles: OHLCV[], period = 20): number | null {
 }
 
 export interface SignalAnalysis {
-  direction: "LONG" | "SHORT" | "NEUTRAL";
+  direction: "LONG" | "SHORT";
   confidence: number;
   reasons: string[];
   rsi: number | null;
@@ -188,15 +188,14 @@ export function analyzeSignal(candles: OHLCV[]): SignalAnalysis | null {
     shortReasons.push(`Volume ${volumeRatio.toFixed(1)}x above average`);
   }
 
-  const longWins = longScore > shortScore;
-  const winScore = longWins ? longScore : shortScore;
-  const loseScore = longWins ? shortScore : longScore;
+  const direction = longScore >= shortScore ? "LONG" : "SHORT";
+  const winScore = direction === "LONG" ? longScore : shortScore;
+  const reasons = direction === "LONG" ? longReasons : shortReasons;
 
-  if (winScore - loseScore < 15) return null;
+  // Only return null if we have no meaningful signal data
+  if (winScore === 0 || !rsi || !macd || !ema20) return null;
 
-  const direction = longWins ? "LONG" : "SHORT";
-  const reasons = longWins ? longReasons : shortReasons;
-  const confidence = Math.min(95, Math.round(winScore * 0.85));
+  const confidence = Math.min(92, Math.max(45, Math.round(winScore * 0.8)));
 
   let tp1: number, tp2: number, tp3: number, sl: number;
   if (direction === "LONG") {
