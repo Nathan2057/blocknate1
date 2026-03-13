@@ -189,7 +189,7 @@ export default function AuthPage() {
       password: suPw,
       options: {
         data: { full_name: suName },
-        emailRedirectTo: "https://blocknate1.vercel.app/auth/callback",
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
       },
     });
     if (error) {
@@ -218,7 +218,7 @@ export default function AuthPage() {
     e.preventDefault();
     setForgotLoading(true);
     const { error } = await supabase!.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: "https://blocknate1.vercel.app/auth/callback?type=recovery",
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?type=recovery`,
     });
     setForgotLoading(false);
     if (error) { setForgotMsg(`Error: ${error.message}`); return; }

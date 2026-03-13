@@ -2,9 +2,25 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Blocknate — Professional Crypto Signals & Live Market Data",
-  description: "Real-time cryptocurrency signals, live market data, Fear & Greed index, and professional trading tools for serious traders.",
-  keywords: "crypto signals, bitcoin, trading, market analysis, fear greed index",
+  title: "Blocknate — Professional Crypto Trading Signals",
+  description: "Automated crypto trading signals powered by technical analysis. Live charts, market tools, Fear & Greed index, news and education for serious traders.",
+  keywords: "crypto signals, trading signals, bitcoin, ethereum, technical analysis, fear greed index, crypto trading",
+  openGraph: {
+    title: "Blocknate — Professional Crypto Trading Signals",
+    description: "Automated crypto trading signals powered by technical analysis. Live charts, market tools, news and education.",
+    url: "https://blocknate1.vercel.app",
+    siteName: "Blocknate",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Blocknate — Professional Crypto Trading Signals",
+    description: "Automated crypto trading signals powered by technical analysis.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -770,8 +770,8 @@ function CronJobsTab() {
   }
 
   const CRONS = [
-    { key: "gen", title: "Signal Generator", url: `https://blocknate1.vercel.app/api/generate-signals?secret=${API_SECRET}`, schedule: "Every 1 hour", desc: "Generates new trading signals" },
-    { key: "upd", title: "Signal Status Updater", url: `https://blocknate1.vercel.app/api/update-signal-status?secret=${API_SECRET}`, schedule: "Every 30 minutes", desc: "Updates TP/SL hit status" },
+    { key: "gen", title: "Signal Generator", url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/generate-signals?secret=${API_SECRET}`, schedule: "Every 1 hour", desc: "Generates new trading signals" },
+    { key: "upd", title: "Signal Status Updater", url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/update-signal-status?secret=${API_SECRET}`, schedule: "Every 30 minutes", desc: "Updates TP/SL hit status" },
   ];
 
   return (

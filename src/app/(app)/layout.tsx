@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { supabase } from "@/lib/supabase";
 
 const SIDEBAR_FULL = 240;
@@ -106,7 +107,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           transition: "margin-left 240ms ease",
         }}
       >
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
       </main>
     </div>
   );
