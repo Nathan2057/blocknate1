@@ -36,21 +36,33 @@ export function calcMACD(closes: number[]): {
   macd: number;
   signal: number;
   histogram: number;
+  prevHistogram: number;
 } | null {
   if (closes.length < 35) return null;
-  const ema12 = calcEMA(closes, 12);
-  const ema26 = calcEMA(closes, 26);
-  if (!ema12 || !ema26) return null;
-  const macdLine = ema12 - ema26;
+
+  // Build MACD line array for all available windows
   const macdValues: number[] = [];
   for (let i = 26; i <= closes.length; i++) {
     const e12 = calcEMA(closes.slice(0, i), 12);
     const e26 = calcEMA(closes.slice(0, i), 26);
     if (e12 && e26) macdValues.push(e12 - e26);
   }
+
+  if (macdValues.length < 10) return null;
+
   const signal = calcEMA(macdValues, 9);
-  if (!signal) return null;
-  return { macd: macdLine, signal, histogram: macdLine - signal };
+  const prevSignal = calcEMA(macdValues.slice(0, -1), 9);
+  if (!signal || !prevSignal) return null;
+
+  const macdLine = macdValues[macdValues.length - 1];
+  const prevMacdLine = macdValues[macdValues.length - 2];
+
+  return {
+    macd: macdLine,
+    signal,
+    histogram: macdLine - signal,
+    prevHistogram: prevMacdLine - prevSignal,
+  };
 }
 
 export function calcBB(
@@ -91,11 +103,14 @@ export function calcATR(candles: OHLCV[], period = 14): number | null {
   return trs.slice(-period).reduce((a, b) => a + b, 0) / period;
 }
 
-export function calcVolumeRatio(candles: OHLCV[], period = 20): number | null {
-  if (candles.length < period) return null;
-  const avg =
-    candles.slice(-period - 1, -1).reduce((a, b) => a + b.volume, 0) / period;
-  return avg > 0 ? candles[candles.length - 1].volume / avg : null;
+export function calcVolumeRatio(candles: OHLCV[]): number {
+  if (candles.length < 20) return 1.0;
+  // Last 20 candles; average the first 19 (excluding the current candle)
+  const recent = candles.slice(-20);
+  const avgVolume = recent.slice(0, -1).reduce((sum, c) => sum + c.volume, 0) / 19;
+  const currentVolume = candles[candles.length - 1].volume;
+  if (avgVolume === 0) return 1.0;
+  return Math.round((currentVolume / avgVolume) * 100) / 100;
 }
 
 export interface SignalAnalysis {
@@ -123,80 +138,158 @@ export function analyzeSignal(candles: OHLCV[]): SignalAnalysis | null {
   const price = closes[closes.length - 1];
   if (!price || isNaN(price) || price <= 0) return null;
 
-  // Calculate what we can, falling back to safe defaults
   const rsi = calcRSI(closes) ?? 50;
   const macd = calcMACD(closes);
-  const ema20 = calcEMA(closes, 20) ?? price;
-  const ema50 = calcEMA(closes, 50) ?? price;
+  const ema20 = calcEMA(closes, 20);
+  const ema50 = calcEMA(closes, 50);
   const ema200 = calcEMA(closes, 200);
   const bb = calcBB(closes);
   const rawAtr = calcATR(candles);
   const safeAtr = rawAtr && rawAtr > 0 ? rawAtr : price * 0.02;
-  const volumeRatio = calcVolumeRatio(candles) ?? 1.0;
+  const volumeRatio = calcVolumeRatio(candles);
 
   let longScore = 0;
   let shortScore = 0;
   const longReasons: string[] = [];
   const shortReasons: string[] = [];
 
-  // RSI scoring (0-30 pts)
-  if (rsi < 30) { longScore += 30; longReasons.push(`RSI oversold (${rsi.toFixed(1)})`); }
-  else if (rsi < 40) { longScore += 20; longReasons.push(`RSI low (${rsi.toFixed(1)})`); }
-  else if (rsi < 50) { longScore += 10; longReasons.push(`RSI below midline (${rsi.toFixed(1)})`); }
-  else if (rsi > 70) { shortScore += 30; shortReasons.push(`RSI overbought (${rsi.toFixed(1)})`); }
-  else if (rsi > 60) { shortScore += 20; shortReasons.push(`RSI high (${rsi.toFixed(1)})`); }
-  else if (rsi > 50) { shortScore += 10; shortReasons.push(`RSI above midline (${rsi.toFixed(1)})`); }
+  // ── RSI scoring — heavy weight, most reliable indicator ──────────────────────
+  if (rsi <= 20) {
+    longScore += 40; longReasons.push(`RSI extremely oversold (${rsi.toFixed(1)})`);
+  } else if (rsi <= 30) {
+    longScore += 30; longReasons.push(`RSI oversold (${rsi.toFixed(1)})`);
+  } else if (rsi <= 40) {
+    longScore += 20; longReasons.push(`RSI approaching oversold (${rsi.toFixed(1)})`);
+  } else if (rsi <= 45) {
+    longScore += 10; longReasons.push(`RSI below midline (${rsi.toFixed(1)})`);
+  } else if (rsi >= 80) {
+    shortScore += 40; shortReasons.push(`RSI extremely overbought (${rsi.toFixed(1)})`);
+  } else if (rsi >= 70) {
+    shortScore += 30; shortReasons.push(`RSI overbought (${rsi.toFixed(1)})`);
+  } else if (rsi >= 60) {
+    shortScore += 20; shortReasons.push(`RSI approaching overbought (${rsi.toFixed(1)})`);
+  } else if (rsi >= 55) {
+    shortScore += 10; shortReasons.push(`RSI above midline (${rsi.toFixed(1)})`);
+  }
+  // 45–55 is neutral, no score
 
-  // MACD scoring (0-25 pts)
+  // ── MACD scoring — detects momentum and crossovers ───────────────────────────
   if (macd) {
-    if (macd.histogram > 0) {
-      const pts = macd.macd > macd.signal ? 25 : 12;
-      longScore += pts;
-      longReasons.push(macd.macd > macd.signal ? "MACD bullish crossover" : "MACD positive momentum");
-    } else {
-      const pts = macd.macd < macd.signal ? 25 : 12;
-      shortScore += pts;
-      shortReasons.push(macd.macd < macd.signal ? "MACD bearish crossover" : "MACD negative momentum");
+    const hist = macd.histogram;
+    const prevHist = macd.prevHistogram;
+    const crossingUp = prevHist < 0 && hist > 0;
+    const crossingDown = prevHist > 0 && hist < 0;
+
+    if (crossingUp) {
+      longScore += 30; longReasons.push("MACD bullish crossover");
+    } else if (hist > 0 && hist > prevHist) {
+      longScore += 20; longReasons.push("MACD momentum increasing");
+    } else if (hist > 0) {
+      longScore += 10; longReasons.push("MACD positive");
+    } else if (crossingDown) {
+      shortScore += 30; shortReasons.push("MACD bearish crossover");
+    } else if (hist < 0 && hist < prevHist) {
+      shortScore += 20; shortReasons.push("MACD momentum decreasing");
+    } else if (hist < 0) {
+      shortScore += 10; shortReasons.push("MACD negative");
     }
   }
 
-  // EMA structure (0-20 pts)
-  const emaBull = price > ema20 && ema20 > ema50;
-  const emaBear = price < ema20 && ema20 < ema50;
-  if (emaBull) { longScore += 20; longReasons.push("Above EMA20 & EMA50"); }
-  else if (price > ema20) { longScore += 10; longReasons.push("Above EMA20"); }
-  if (emaBear) { shortScore += 20; shortReasons.push("Below EMA20 & EMA50"); }
-  else if (price < ema20) { shortScore += 10; shortReasons.push("Below EMA20"); }
+  // ── EMA structure ─────────────────────────────────────────────────────────────
+  let emaTrend = "NEUTRAL";
 
-  // EMA200 bias (0-10 pts)
+  if (ema20 && ema50) {
+    const aboveEma20 = price > ema20;
+    const aboveEma50 = price > ema50;
+    const ema20AboveEma50 = ema20 > ema50;
+
+    if (aboveEma20 && aboveEma50 && ema20AboveEma50) {
+      longScore += 25; longReasons.push("Above EMA20 & EMA50 (strong uptrend)");
+      emaTrend = "BULLISH";
+    } else if (aboveEma20 && !aboveEma50) {
+      longScore += 10; longReasons.push("Above EMA20, testing EMA50");
+      emaTrend = "NEUTRAL";
+    } else if (!aboveEma20 && !aboveEma50 && !ema20AboveEma50) {
+      shortScore += 25; shortReasons.push("Below EMA20 & EMA50 (strong downtrend)");
+      emaTrend = "BEARISH";
+    } else if (!aboveEma20 && aboveEma50) {
+      shortScore += 10; shortReasons.push("Below EMA20, testing EMA50 support");
+      emaTrend = "NEUTRAL";
+    }
+  }
+
+  // ── EMA200 macro bias ─────────────────────────────────────────────────────────
   if (ema200) {
-    if (price > ema200) { longScore += 10; longReasons.push("Above EMA200"); }
-    else { shortScore += 10; shortReasons.push("Below EMA200"); }
+    if (price > ema200) {
+      longScore += 15; longReasons.push("Price above EMA200 (bull market)");
+    } else {
+      shortScore += 15; shortReasons.push("Price below EMA200 (bear market)");
+    }
   }
 
-  // Bollinger Bands (0-15 pts)
+  // ── Bollinger Bands — positional scoring ─────────────────────────────────────
+  let bbPosition = "MIDDLE";
   if (bb) {
-    if (price <= bb.lower) { longScore += 15; longReasons.push("At BB lower band"); }
-    else if (price < bb.middle) { longScore += 7; longReasons.push("Below BB midline"); }
-    else if (price >= bb.upper) { shortScore += 15; shortReasons.push("At BB upper band"); }
-    else if (price > bb.middle) { shortScore += 7; shortReasons.push("Above BB midline"); }
+    const bbRange = bb.upper - bb.lower;
+    const bbWidth = bbRange / bb.middle;
+    const pricePos = bbRange > 0 ? (price - bb.lower) / bbRange : 0.5;
+
+    if (pricePos <= 0.1) {
+      longScore += 25; longReasons.push("Price at BB lower band (oversold)");
+      bbPosition = "LOWER";
+    } else if (pricePos <= 0.3) {
+      longScore += 12; longReasons.push("Price in lower BB zone");
+      bbPosition = "LOWER_MID";
+    } else if (pricePos >= 0.9) {
+      shortScore += 25; shortReasons.push("Price at BB upper band (overbought)");
+      bbPosition = "UPPER";
+    } else if (pricePos >= 0.7) {
+      shortScore += 12; shortReasons.push("Price in upper BB zone");
+      bbPosition = "UPPER_MID";
+    } else {
+      bbPosition = "MIDDLE";
+    }
+
+    // BB squeeze = breakout imminent
+    if (bbWidth < 0.02) {
+      longScore += 5; shortScore += 5;
+      longReasons.push("BB squeeze — breakout imminent");
+      shortReasons.push("BB squeeze — breakout imminent");
+    }
   }
 
-  // Volume (0-10 pts)
-  if (volumeRatio > 1.5) {
-    const pts = volumeRatio > 2 ? 10 : 5;
-    longScore += pts; shortScore += pts;
-    longReasons.push(`High volume (${volumeRatio.toFixed(1)}x)`);
-    shortReasons.push(`High volume (${volumeRatio.toFixed(1)}x)`);
+  // ── Volume confirmation ───────────────────────────────────────────────────────
+  if (volumeRatio >= 3.0) {
+    longScore += 20; shortScore += 20;
+    longReasons.push(`Very high volume (${volumeRatio.toFixed(1)}x avg)`);
+    shortReasons.push(`Very high volume (${volumeRatio.toFixed(1)}x avg)`);
+  } else if (volumeRatio >= 2.0) {
+    longScore += 12; shortScore += 12;
+    longReasons.push(`High volume (${volumeRatio.toFixed(1)}x avg)`);
+    shortReasons.push(`High volume (${volumeRatio.toFixed(1)}x avg)`);
+  } else if (volumeRatio >= 1.5) {
+    longScore += 6; shortScore += 6;
+    longReasons.push(`Above average volume (${volumeRatio.toFixed(1)}x)`);
+    shortReasons.push(`Above average volume (${volumeRatio.toFixed(1)}x)`);
+  } else if (volumeRatio < 0.5) {
+    longScore -= 5; shortScore -= 5;
   }
 
-  // Always pick stronger direction
-  const direction: "LONG" | "SHORT" = longScore >= shortScore ? "LONG" : "SHORT";
+  // ── Direction + confidence ────────────────────────────────────────────────────
+  const direction: "LONG" | "SHORT" = longScore > shortScore ? "LONG" : "SHORT";
   const winScore = direction === "LONG" ? longScore : shortScore;
+  const loseScore = direction === "LONG" ? shortScore : longScore;
   const reasons = direction === "LONG" ? longReasons : shortReasons;
 
-  const confidence = Math.min(92, Math.max(45, Math.round(winScore * 0.75)));
+  const edge = winScore - loseScore;
 
+  // Max possible score: RSI 40 + MACD 30 + EMA 40 + BB 25 + Volume 20 = 155
+  const MAX_SCORE = 155;
+  const scoreContrib = Math.min(35, Math.round((winScore / MAX_SCORE) * 35));
+  const edgeContrib = Math.min(15, Math.round((edge / 50) * 15));
+  const confidence = Math.min(92, Math.max(45, 45 + scoreContrib + edgeContrib));
+
+  // ── TP / SL via ATR ───────────────────────────────────────────────────────────
   let tp1: number, tp2: number, tp3: number, sl: number;
   if (direction === "LONG") {
     sl  = price - safeAtr * 1.5;
@@ -210,7 +303,8 @@ export function analyzeSignal(candles: OHLCV[]): SignalAnalysis | null {
     tp3 = price - safeAtr * 3.5;
   }
 
-  const emaTrend = emaBull ? "BULLISH" : emaBear ? "BEARISH" : "NEUTRAL";
+  const leverage = confidence >= 85 ? 5 : confidence >= 75 ? 3 : confidence >= 65 ? 2 : 1;
+  const riskLevel = confidence >= 80 ? "LOW" : confidence >= 65 ? "MEDIUM" : "HIGH";
 
   return {
     direction,
@@ -221,9 +315,9 @@ export function analyzeSignal(candles: OHLCV[]): SignalAnalysis | null {
     emaTrend,
     atr: safeAtr,
     volumeRatio,
-    bbPosition: bb?.position ?? "MIDDLE",
+    bbPosition,
     tp1, tp2, tp3, sl,
-    leverage: confidence >= 80 ? 3 : confidence >= 65 ? 2 : 1,
-    riskLevel: confidence >= 75 ? "LOW" : confidence >= 60 ? "MEDIUM" : "HIGH",
+    leverage,
+    riskLevel,
   };
 }
