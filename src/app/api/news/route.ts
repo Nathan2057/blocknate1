@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "edge";
 export const revalidate = 0;
 
-const API_KEY = "c73c0a7a16508d65d05d53766593037e632e9062";
+const API_KEY = process.env.CRYPTOPANIC_API_KEY ?? "";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,13 +93,10 @@ async function fetchCryptoPanic(filter: string, currencies?: string): Promise<CP
     ]) {
       try {
         const res = await fetch(`${base}?${params}`, { cache: "no-store" });
-        console.log(`CryptoPanic ${base} status:`, res.status);
         if (!res.ok) continue;
         const json: CPResponse = await res.json();
-        console.log(`CryptoPanic results count:`, json.results?.length ?? 0);
         if (json.results && json.results.length > 0) return json.results;
-      } catch (err) {
-        console.log(`CryptoPanic fetch error:`, err);
+      } catch {
       }
     }
     return [];
@@ -246,7 +243,6 @@ export async function GET() {
     ]);
 
     const useCryptoPanic = cpHot.length > 0;
-    console.log("Using CryptoPanic:", useCryptoPanic, "hot count:", cpHot.length);
 
     let hot: NewsItem[], rising: NewsItem[], btc: NewsItem[], eth: NewsItem[];
 
@@ -257,7 +253,6 @@ export async function GET() {
       eth = cpEth.map(mapCPPost);
     } else {
       // RSS fallback
-      console.log("Falling back to RSS feeds");
       const rssItems = await fetchAllRSS();
       hot = rssItems;
       rising = [...rssItems].sort(() => Math.random() - 0.5).slice(0, 10);
@@ -280,8 +275,7 @@ export async function GET() {
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     );
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

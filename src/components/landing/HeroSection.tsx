@@ -23,15 +23,19 @@ function MockSignalCard() {
   const [confidence, setConfidence] = useState(0);
 
   useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
     const timer = setTimeout(() => {
       let v = 0;
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
         v += 2;
         setConfidence(v);
-        if (v >= 78) clearInterval(interval);
+        if (v >= 78) clearInterval(interval!);
       }, 20);
     }, 800);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (interval) clearInterval(interval);
+    };
   }, []);
 
   return (
