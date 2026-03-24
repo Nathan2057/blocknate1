@@ -22,13 +22,14 @@ const DEFAULT_PAIRS: SignalPair[] = [
 ];
 
 export default function TradingChart({ pairs }: TradingChartProps) {
-  const displayPairs = pairs && pairs.length > 0 ? pairs : DEFAULT_PAIRS;
+  const loading = !pairs || pairs.length === 0;
+  const displayPairs = !loading ? pairs! : DEFAULT_PAIRS;
   const [active, setActive] = useState(displayPairs[0].pair);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (displayPairs.length > 0) {
-      setActive(displayPairs[0].pair);
+    if (pairs && pairs.length > 0) {
+      setActive(pairs[0].pair);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs]);
@@ -79,7 +80,6 @@ export default function TradingChart({ pairs }: TradingChartProps) {
   }, [active]);
 
   const activePair = displayPairs.find((p) => p.pair === active);
-  const hasSignals = pairs && pairs.length > 0;
 
   return (
     <div
@@ -102,7 +102,15 @@ export default function TradingChart({ pairs }: TradingChartProps) {
           overflowX: "auto",
         }}
       >
-        {displayPairs.map((p) => {
+        {loading
+          ? [1, 2, 3, 4, 5].map((n) => (
+              <div
+                key={n}
+                className="skeleton"
+                style={{ width: 64, height: 16, margin: "10px 16px", borderRadius: 3, flexShrink: 0 }}
+              />
+            ))
+          : displayPairs.map((p) => {
           const isActive = active === p.pair;
           const isLong = p.direction === "LONG";
           return (
@@ -127,21 +135,19 @@ export default function TradingChart({ pairs }: TradingChartProps) {
               }}
             >
               {p.symbol}
-              {hasSignals && (
-                <span
-                  style={{
-                    fontSize: "0.6rem",
-                    fontWeight: 700,
-                    padding: "1px 5px",
-                    borderRadius: 2,
-                    background: isLong ? "rgba(0,200,150,0.15)" : "rgba(255,59,92,0.15)",
-                    color: isLong ? "#00C896" : "#FF3B5C",
-                    border: `1px solid ${isLong ? "rgba(0,200,150,0.3)" : "rgba(255,59,92,0.3)"}`,
-                  }}
-                >
-                  {p.direction}
-                </span>
-              )}
+              <span
+                style={{
+                  fontSize: "0.6rem",
+                  fontWeight: 700,
+                  padding: "1px 5px",
+                  borderRadius: 2,
+                  background: isLong ? "rgba(0,200,150,0.15)" : "rgba(255,59,92,0.15)",
+                  color: isLong ? "#00C896" : "#FF3B5C",
+                  border: `1px solid ${isLong ? "rgba(0,200,150,0.3)" : "rgba(255,59,92,0.3)"}`,
+                }}
+              >
+                {p.direction}
+              </span>
             </button>
           );
         })}
@@ -155,7 +161,7 @@ export default function TradingChart({ pairs }: TradingChartProps) {
             flexShrink: 0,
           }}
         >
-          {hasSignals && activePair && activePair.confidence > 0 && (
+          {!loading && activePair && activePair.confidence > 0 && (
             <span style={{ color: "#8892A4", fontSize: "0.68rem" }}>
               {activePair.confidence}% conf
             </span>

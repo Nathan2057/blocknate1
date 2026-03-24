@@ -58,10 +58,10 @@ function ConfidenceCircle({ value }: { value: number }) {
 
 // ─── Price Ladder ─────────────────────────────────────────────────────────────
 
-function PriceLadder({ signal }: { signal: Signal }) {
+function PriceLadder({ signal, livePrice }: { signal: Signal; livePrice?: number }) {
   const { direction, entry_price, tp1, tp2, tp3, sl } = signal;
   const isLong = direction === "LONG";
-  const current = signal.current_price ?? entry_price;
+  const current = livePrice ?? signal.current_price ?? entry_price;
   const pctCurrent = ((current - entry_price) / entry_price) * 100;
 
   const levels = isLong
@@ -153,7 +153,7 @@ function PriceLadder({ signal }: { signal: Signal }) {
 
 // ─── Signal Card ──────────────────────────────────────────────────────────────
 
-function SignalCard({ signal }: { signal: Signal }) {
+function SignalCard({ signal, livePrice }: { signal: Signal; livePrice?: number }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = signal.direction === "LONG";
   const accent = isLong ? "#00C896" : "#FF3B5C";
@@ -216,7 +216,7 @@ function SignalCard({ signal }: { signal: Signal }) {
       </div>
 
       {/* Price ladder */}
-      <PriceLadder signal={signal} />
+      <PriceLadder signal={signal} livePrice={livePrice} />
 
       {/* Footer */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -314,7 +314,26 @@ export default function SignalsPage() {
   const [recentSignals, setRecentSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState("");
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // WebSocket: stream live prices for all active signal pairs
+  useEffect(() => {
+    if (!activeSignals || activeSignals.length === 0) return;
+    const pairs = activeSignals.map((s) => s.pair.toLowerCase());
+    const streams = pairs.map((p) => `${p}@ticker`).join("/");
+    const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        const data = msg.data;
+        if (data?.s && data?.c) {
+          setLivePrices((prev) => ({ ...prev, [data.s]: parseFloat(data.c) }));
+        }
+      } catch { /* ignore */ }
+    };
+    return () => { if (ws.readyState === WebSocket.OPEN) ws.close(); };
+  }, [activeSignals]);
 
   const loadSignals = useCallback(async () => {
     const [{ data: active }, { data: recent }] = await Promise.all([
@@ -385,7 +404,7 @@ export default function SignalsPage() {
         </div>
       ) : activeSignals.length > 0 ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 16, marginBottom: 32 }}>
-          {activeSignals.map((s) => <SignalCard key={s.id} signal={s} />)}
+          {activeSignals.map((s) => <SignalCard key={s.id} signal={s} livePrice={livePrices[s.pair]} />)}
         </div>
       ) : (
         <div style={{ background: "rgba(12,16,24,0.7)", border: "1px solid #1C2236", borderRadius: 4, padding: "60px 24px", textAlign: "center", marginBottom: 32 }}>
