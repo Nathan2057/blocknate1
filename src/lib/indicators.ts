@@ -250,8 +250,8 @@ export function analyzeSignal(candles: OHLCV[]): SignalAnalysis | null {
     tp3 = price - safeAtr * 3.5
   }
 
-  const leverage  = confidence >= 80 ? 3 : confidence >= 68 ? 2 : 1
-  const riskLevel = confidence >= 72 ? 'LOW' : confidence >= 60 ? 'MEDIUM' : 'HIGH'
+  const leverage  = confidence >= 80 ? 3 : confidence >= 65 ? 2 : 1
+  const riskLevel = confidence >= 70 ? 'LOW' : confidence >= 57 ? 'MEDIUM' : 'HIGH'
 
   return {
     direction,

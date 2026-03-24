@@ -3,8 +3,20 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { fmtPrice, riskColor } from "@/lib/utils";
+import { fmtPrice } from "@/lib/utils";
 import { Zap } from "lucide-react";
+
+function getDisplayRisk(confidence: number): string {
+  if (confidence >= 70) return "LOW";
+  if (confidence >= 57) return "MEDIUM";
+  return "HIGH";
+}
+
+function getRiskColor(risk: string): string {
+  if (risk === "LOW")    return "#00C896";
+  if (risk === "MEDIUM") return "#F59E0B";
+  return "#FF3B5C";
+}
 
 interface Signal {
   id: string;
@@ -123,15 +135,21 @@ function SignalCard({ signal, livePrice, onClick }: {
 
       {/* Meta */}
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <span style={{
-          fontSize: "0.62rem", fontWeight: 600,
-          color: riskColor(signal.risk_level),
-          backgroundColor: "rgba(0,0,0,0.3)",
-          border: `1px solid ${riskColor(signal.risk_level)}`,
-          padding: "1px 5px", borderRadius: 2,
-        }}>
-          {signal.risk_level}
-        </span>
+        {(() => {
+          const risk = getDisplayRisk(signal.confidence);
+          const rc = getRiskColor(risk);
+          return (
+            <span style={{
+              fontSize: "0.62rem", fontWeight: 600,
+              color: rc,
+              backgroundColor: "rgba(0,0,0,0.3)",
+              border: `1px solid ${rc}`,
+              padding: "1px 5px", borderRadius: 2,
+            }}>
+              {risk}
+            </span>
+          );
+        })()}
         <span style={{ fontSize: "0.65rem", color: "#4A5568" }}>{signal.timeframe}</span>
         <span style={{ fontSize: "0.65rem", color: "#4A5568" }}>{signal.leverage}x</span>
       </div>

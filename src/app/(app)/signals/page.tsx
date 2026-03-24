@@ -27,6 +27,26 @@ function formatCountdown(ms: number): string {
   return `${s}s`;
 }
 
+// ─── Display helpers (recalculate from confidence so old DB records show correctly) ──
+
+function getDisplayLeverage(confidence: number): number {
+  if (confidence >= 80) return 3;
+  if (confidence >= 65) return 2;
+  return 1;
+}
+
+function getDisplayRisk(confidence: number): string {
+  if (confidence >= 70) return "LOW";
+  if (confidence >= 57) return "MEDIUM";
+  return "HIGH";
+}
+
+function getRiskColor(risk: string): string {
+  if (risk === "LOW")    return "#00C896";
+  if (risk === "MEDIUM") return "#F59E0B";
+  return "#FF3B5C";
+}
+
 // ─── Confidence circle ────────────────────────────────────────────────────────
 
 function ConfidenceCircle({ value }: { value: number }) {
@@ -222,15 +242,21 @@ function SignalCard({ signal, livePrice }: { signal: Signal; livePrice?: number 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", gap: 10 }}>
           <span style={{ color: "#4A5568", fontSize: "0.72rem" }}>
-            Lev: <span style={{ color: "#8892A4", fontWeight: 600 }}>{signal.leverage}x</span>
+            Lev: <span style={{ color: "#8892A4", fontWeight: 600 }}>{getDisplayLeverage(signal.confidence)}x</span>
           </span>
-          <span style={{
-            fontSize: "0.65rem", fontWeight: 700, padding: "2px 6px", borderRadius: 2,
-            background: signal.risk_level === "LOW" ? "rgba(0,200,150,0.1)" : signal.risk_level === "HIGH" ? "rgba(255,59,92,0.1)" : "rgba(245,158,11,0.1)",
-            color: signal.risk_level === "LOW" ? "#00C896" : signal.risk_level === "HIGH" ? "#FF3B5C" : "#F59E0B",
-          }}>
-            {signal.risk_level} RISK
-          </span>
+          {(() => {
+            const risk = getDisplayRisk(signal.confidence);
+            const rc = getRiskColor(risk);
+            return (
+              <span style={{
+                fontSize: "0.65rem", fontWeight: 700, padding: "2px 6px", borderRadius: 2,
+                background: `${rc}1a`,
+                color: rc,
+              }}>
+                {risk} RISK
+              </span>
+            );
+          })()}
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
@@ -321,8 +347,13 @@ export default function SignalsPage() {
   useEffect(() => {
     if (!activeSignals || activeSignals.length === 0) return;
     const pairs = activeSignals.map((s) => s.pair.toLowerCase());
+    if (pairs.length === 0) return;
+    console.log("Connecting WebSocket for pairs:", pairs);
     const streams = pairs.map((p) => `${p}@ticker`).join("/");
     const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+    ws.onopen = () => console.log("✅ Price stream connected");
+    ws.onerror = (e) => console.log("❌ WebSocket error", e);
+    ws.onclose = () => console.log("WebSocket closed");
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -332,7 +363,7 @@ export default function SignalsPage() {
         }
       } catch { /* ignore */ }
     };
-    return () => { if (ws.readyState === WebSocket.OPEN) ws.close(); };
+    return () => { ws.close(); };
   }, [activeSignals]);
 
   const loadSignals = useCallback(async () => {
