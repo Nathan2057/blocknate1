@@ -62,34 +62,16 @@ export default function LandingNav() {
           ))}
         </div>
 
-        {/* Right buttons */}
+        {/* Right CTA */}
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <Link href="/auth" style={{
-            padding: "8px 18px", borderRadius: 4,
-            border: "1px solid #1C2236", background: "transparent",
-            color: "#8892A4", fontSize: "0.85rem", fontWeight: 500,
-            textDecoration: "none", display: "inline-block",
-            transition: "border-color 200ms, color 200ms",
-          }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#0066FF";
-              e.currentTarget.style.color = "#FFFFFF";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "#1C2236";
-              e.currentTarget.style.color = "#8892A4";
-            }}
-          >
-            Sign In
-          </Link>
-          <Link href="/auth" style={{
-            padding: "8px 18px", borderRadius: 4,
+          <Link href="/dashboard" style={{
+            padding: "8px 20px", borderRadius: 4,
             background: "#0066FF", color: "#fff",
             fontSize: "0.85rem", fontWeight: 700,
             textDecoration: "none", display: "inline-block",
             boxShadow: "0 0 20px rgba(0,102,255,0.3)",
           }}>
-            Sign Up Free
+            Launch App →
           </Link>
         </div>
       </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { generateSignalsBrowser, updateSignalStatusBrowser } from "@/lib/clientSignalGenerator";
 
@@ -9,22 +8,8 @@ import { generateSignalsBrowser, updateSignalStatusBrowser } from "@/lib/clientS
 const API_SECRET = "blocknate_secret_2025";
 
 /* ─── Types ─── */
-type UserRole = "user" | "admin" | "super_admin";
 type SignalStatus = "ACTIVE" | "TP1_HIT" | "TP2_HIT" | "TP3_HIT" | "SL_HIT" | "CLOSED" | "CANCELLED";
 type Category = "guide" | "strategy" | "pattern" | "glossary";
-
-interface Profile {
-  id: string;
-  email: string | null;
-  full_name: string | null;
-  role: UserRole;
-  is_banned: boolean;
-  banned_reason: string | null;
-  banned_at: string | null;
-  plan?: string | null;
-  created_at: string;
-  updated_at?: string;
-}
 
 interface Signal {
   id: string;
@@ -104,181 +89,6 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
       <div style={{ color: "#4A5568", fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{label}</div>
       <div style={{ color: "#FFFFFF", fontSize: "1.5rem", fontWeight: 900, lineHeight: 1 }}>{value}</div>
     </div>
-  );
-}
-
-/* ─── Role / Status badges ─── */
-function RoleBadge({ role }: { role: UserRole }) {
-  const map = {
-    super_admin: { text: "SUPER ADMIN", color: "#FF3B5C", bg: "rgba(255,59,92,0.12)" },
-    admin: { text: "ADMIN", color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
-    user: { text: "USER", color: "#4A5568", bg: "#1C2236" },
-  };
-  const s = map[role] ?? map.user;
-  return <Badge text={s.text} color={s.color} bg={s.bg} />;
-}
-
-function StatusBadge({ banned }: { banned: boolean }) {
-  return banned
-    ? <Badge text="BANNED" color="#FF3B5C" bg="rgba(255,59,92,0.1)" />
-    : <Badge text="ACTIVE" color="#00C896" bg="rgba(0,200,150,0.1)" />;
-}
-
-/* ─── Ban Modal ─── */
-function BanModal({ user, onClose, onBanned }: { user: Profile; onClose: () => void; onBanned: () => void }) {
-  const [reason, setReason] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleBan(e: React.FormEvent) {
-    e.preventDefault();
-    if (!reason.trim()) { setError("Reason is required"); return; }
-    setLoading(true);
-    const { error: dbErr } = await supabase!.from("profiles").update({
-      is_banned: true,
-      banned_at: new Date().toISOString(),
-      banned_reason: reason.trim(),
-    }).eq("id", user.id);
-    setLoading(false);
-    if (dbErr) { setError(dbErr.message); return; }
-    onBanned(); onClose();
-  }
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={onClose}>
-      <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: 32, width: "100%", maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ color: "#FF3B5C", fontWeight: 700, fontSize: "1rem", margin: 0 }}>Ban User</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#4A5568", cursor: "pointer", fontSize: "1.2rem" }}>×</button>
-        </div>
-        <div style={{ background: "#080C14", border: "1px solid #1C2236", borderRadius: 3, padding: "10px 14px", marginBottom: 20 }}>
-          <div style={{ color: "#8892A4", fontSize: "0.72rem" }}>Banning account:</div>
-          <div style={{ color: "#FFFFFF", fontWeight: 600, fontSize: "0.88rem", marginTop: 2 }}>{user.email}</div>
-        </div>
-        {error && <div style={{ background: "rgba(255,59,92,0.08)", border: "1px solid rgba(255,59,92,0.3)", borderRadius: 3, padding: "8px 12px", color: "#FF3B5C", fontSize: "0.78rem", marginBottom: 12 }}>{error}</div>}
-        <form onSubmit={handleBan}>
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>Reason (required)</label>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="State the reason for banning this user..." rows={3} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
-          </div>
-          <button type="submit" disabled={loading} style={{ width: "100%", background: "#FF3B5C", color: "#fff", border: "none", borderRadius: 3, padding: "10px 0", fontWeight: 700, fontSize: "0.88rem", cursor: loading ? "default" : "pointer", opacity: loading ? 0.8 : 1 }}>
-            {loading ? "Banning..." : "Confirm Ban"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-/* ─── User Detail Modal ─── */
-function UserDetailModal({ user, viewerRole, currentUserId, onClose, onUpdate }: {
-  user: Profile; viewerRole: UserRole; currentUserId: string; onClose: () => void; onUpdate: () => void;
-}) {
-  const [tradeCount, setTradeCount] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [banningUser, setBanningUser] = useState(false);
-  const isSelf = user.id === currentUserId;
-  const isSuperAdmin = viewerRole === "super_admin";
-  const isAdminViewer = viewerRole === "admin" || viewerRole === "super_admin";
-
-  useEffect(() => {
-    supabase!.from("portfolio_trades").select("*", { count: "exact", head: true }).eq("user_id", user.id)
-      .then(({ count }) => setTradeCount(count ?? 0));
-  }, [user.id]);
-
-  async function changeRole(newRole: "admin" | "user") {
-    setLoading(true);
-    await supabase!.from("profiles").update({ role: newRole }).eq("id", user.id);
-    setLoading(false);
-    onUpdate(); onClose();
-  }
-
-  async function handleUnban() {
-    if (!window.confirm(`Unban ${user.email}?`)) return;
-    setLoading(true);
-    await supabase!.from("profiles").update({ is_banned: false, banned_at: null, banned_reason: null }).eq("id", user.id);
-    setLoading(false);
-    onUpdate(); onClose();
-  }
-
-  return (
-    <>
-      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={onClose}>
-        <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, padding: 32, width: "100%", maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-            <h2 style={{ color: "#FFFFFF", fontWeight: 700, fontSize: "1rem", margin: 0 }}>User Details</h2>
-            <button onClick={onClose} style={{ background: "none", border: "none", color: "#4A5568", cursor: "pointer", fontSize: "1.2rem" }}>×</button>
-          </div>
-
-          {/* Avatar + info */}
-          <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 20 }}>
-            <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(0,102,255,0.15)", border: "1px solid rgba(0,102,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0066FF", fontSize: "1.2rem", fontWeight: 700, flexShrink: 0 }}>
-              {(user.email?.[0] ?? "?").toUpperCase()}
-            </div>
-            <div>
-              <div style={{ color: "#FFFFFF", fontWeight: 700, fontSize: "0.95rem" }}>{user.full_name || "—"}</div>
-              <div style={{ color: "#8892A4", fontSize: "0.8rem" }}>{user.email}</div>
-              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                <RoleBadge role={user.role} />
-                <StatusBadge banned={user.is_banned} />
-              </div>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-            {[
-              { label: "Joined", value: fmtDate(user.created_at) },
-              { label: "Total Trades", value: tradeCount == null ? "..." : tradeCount },
-              { label: "Plan", value: user.plan ?? "free" },
-            ].map(({ label, value }) => (
-              <div key={label} style={{ background: "#080C14", border: "1px solid #1C2236", borderRadius: 3, padding: "10px 14px" }}>
-                <div style={{ color: "#4A5568", fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
-                <div style={{ color: "#FFFFFF", fontSize: "0.85rem", fontWeight: 600 }}>{value}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Ban info */}
-          {user.is_banned && (
-            <div style={{ background: "rgba(255,59,92,0.06)", border: "1px solid rgba(255,59,92,0.2)", borderRadius: 3, padding: "12px 14px", marginBottom: 20 }}>
-              <div style={{ color: "#FF3B5C", fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Banned</div>
-              <div style={{ color: "#8892A4", fontSize: "0.78rem" }}>{fmtDate(user.banned_at)}</div>
-              {user.banned_reason && <div style={{ color: "#FF3B5C", fontSize: "0.82rem", marginTop: 4 }}>{user.banned_reason}</div>}
-            </div>
-          )}
-
-          {/* Actions */}
-          {!isSelf && isAdminViewer && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {isSuperAdmin && user.role === "user" && (
-                <button onClick={() => changeRole("admin")} disabled={loading} style={{ background: "none", border: "1px solid rgba(245,158,11,0.5)", color: "#F59E0B", borderRadius: 3, padding: "6px 14px", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}>
-                  Make Admin
-                </button>
-              )}
-              {isSuperAdmin && user.role === "admin" && (
-                <button onClick={() => changeRole("user")} disabled={loading} style={{ background: "none", border: "1px solid rgba(245,158,11,0.5)", color: "#F59E0B", borderRadius: 3, padding: "6px 14px", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}>
-                  Revoke Admin
-                </button>
-              )}
-              {(isSuperAdmin || (isAdminViewer && user.role === "user")) && !user.is_banned && (
-                <button onClick={() => setBanningUser(true)} disabled={loading} style={{ background: "none", border: "1px solid rgba(255,59,92,0.5)", color: "#FF3B5C", borderRadius: 3, padding: "6px 14px", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}>
-                  Ban User
-                </button>
-              )}
-              {(isSuperAdmin || (isAdminViewer && user.role === "user")) && user.is_banned && (
-                <button onClick={handleUnban} disabled={loading} style={{ background: "none", border: "1px solid rgba(0,200,150,0.5)", color: "#00C896", borderRadius: 3, padding: "6px 14px", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}>
-                  Unban
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      {banningUser && (
-        <BanModal user={user} onClose={() => setBanningUser(false)} onBanned={() => { onUpdate(); onClose(); }} />
-      )}
-    </>
   );
 }
 
@@ -684,120 +494,6 @@ function AddSignalModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
           </button>
         </form>
       </div>
-    </div>
-  );
-}
-
-/* ─── USERS TAB ─── */
-function UsersTab({ viewerRole, currentUserId }: { viewerRole: UserRole; currentUserId: string }) {
-  const [users, setUsers] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("ALL");
-  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
-  const [banningUser, setBanningUser] = useState<Profile | null>(null);
-  const isSuperAdmin = viewerRole === "super_admin";
-  const isAdminViewer = viewerRole === "admin" || viewerRole === "super_admin";
-
-  const fetchUsers = useCallback(() => {
-    supabase!.from("profiles").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => { setUsers((data as Profile[]) ?? []); setLoading(false); });
-  }, []);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
-
-  async function changeRole(user: Profile, newRole: "admin" | "user") {
-    await supabase!.from("profiles").update({ role: newRole }).eq("id", user.id);
-    fetchUsers();
-  }
-
-  async function handleUnban(user: Profile) {
-    if (!window.confirm(`Unban ${user.email}?`)) return;
-    await supabase!.from("profiles").update({ is_banned: false, banned_at: null, banned_reason: null }).eq("id", user.id);
-    fetchUsers();
-  }
-
-  const filtered = users.filter((u) => {
-    const matchSearch = !search || (u.email ?? "").toLowerCase().includes(search.toLowerCase()) || (u.full_name ?? "").toLowerCase().includes(search.toLowerCase());
-    const matchRole = roleFilter === "ALL" || (roleFilter === "Admins" && (u.role === "admin" || u.role === "super_admin")) || (roleFilter === "Users" && u.role === "user") || (roleFilter === "Banned" && u.is_banned);
-    return matchSearch && matchRole;
-  });
-
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "#4A5568" }}>Loading users...</div>;
-
-  return (
-    <div>
-      <div style={{ padding: "16px 0 12px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by email or name..." style={{ ...inputStyle, maxWidth: 280 }} />
-        <div style={{ display: "flex", gap: 6 }}>
-          {["ALL", "Users", "Admins", "Banned"].map((f) => (
-            <button key={f} onClick={() => setRoleFilter(f)} style={{ background: roleFilter === f ? "#0066FF" : "transparent", border: `1px solid ${roleFilter === f ? "#0066FF" : "#1C2236"}`, borderRadius: 3, padding: "4px 12px", color: roleFilter === f ? "#fff" : "#8892A4", fontSize: "0.72rem", fontWeight: 600, cursor: "pointer" }}>{f}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ background: "#0C1018", border: "1px solid #1C2236", borderRadius: 4, overflow: "hidden" }}>
-        {filtered.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: "#4A5568" }}>No users found</div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>{["Avatar", "Email", "Full Name", "Role", "Status", "Joined", "Actions"].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {filtered.map((user) => {
-                  const isSelf = user.id === currentUserId;
-                  return (
-                    <tr key={user.id} onClick={() => setSelectedUser(user)} style={{ cursor: "pointer" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                    >
-                      <td style={tdStyle}>
-                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(0,102,255,0.15)", border: "1px solid rgba(0,102,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0066FF", fontSize: "0.72rem", fontWeight: 700 }}>
-                          {(user.email?.[0] ?? "?").toUpperCase()}
-                        </div>
-                      </td>
-                      <td style={{ ...tdStyle, color: "#FFFFFF" }}>{user.email ?? "—"}{isSelf && <span style={{ color: "#4A5568", fontSize: "0.68rem", marginLeft: 6 }}>(you)</span>}</td>
-                      <td style={{ ...tdStyle, color: "#8892A4" }}>{user.full_name ?? "—"}</td>
-                      <td style={tdStyle}><RoleBadge role={user.role ?? "user"} /></td>
-                      <td style={tdStyle}><StatusBadge banned={user.is_banned} /></td>
-                      <td style={{ ...tdStyle, color: "#4A5568" }}>{fmtDate(user.created_at)}</td>
-                      <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
-                        {!isSelf && isAdminViewer && (
-                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                            {isSuperAdmin && user.role === "user" && (
-                              <SmallBtn onClick={() => changeRole(user, "admin")} color="#F59E0B">Make Admin</SmallBtn>
-                            )}
-                            {isSuperAdmin && user.role === "admin" && (
-                              <SmallBtn onClick={() => changeRole(user, "user")} color="#F59E0B">Revoke</SmallBtn>
-                            )}
-                            {(isSuperAdmin || user.role === "user") && !user.is_banned && (
-                              <SmallBtn onClick={() => setBanningUser(user)} color="#FF3B5C">Ban</SmallBtn>
-                            )}
-                            {(isSuperAdmin || user.role === "user") && user.is_banned && (
-                              <SmallBtn onClick={() => handleUnban(user)} color="#00C896">Unban</SmallBtn>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <div style={{ padding: "10px 16px", borderTop: "1px solid #1C2236" }}>
-          <span style={{ color: "#4A5568", fontSize: "0.72rem" }}>Total: {filtered.length} users</span>
-        </div>
-      </div>
-
-      {selectedUser && (
-        <UserDetailModal user={selectedUser} viewerRole={viewerRole} currentUserId={currentUserId} onClose={() => setSelectedUser(null)} onUpdate={fetchUsers} />
-      )}
-      {banningUser && (
-        <BanModal user={banningUser} onClose={() => setBanningUser(null)} onBanned={fetchUsers} />
-      )}
     </div>
   );
 }
@@ -1314,104 +1010,84 @@ function IssueLogTab() {
 }
 
 /* ─── MAIN PAGE ─── */
-type Tab = "users" | "signals" | "articles" | "system" | "cron" | "issuelog";
+type Tab = "signals" | "articles" | "system" | "cron" | "issuelog";
+
+const ADMIN_PIN = "blocknate2025";
 
 export default function AdminPage() {
-  const router = useRouter();
-  const [authChecked, setAuthChecked] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole>("user");
-  const [currentUserId, setCurrentUserId] = useState("");
-  const [activeTab, setActiveTab] = useState<Tab>("users");
-  const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, bannedUsers: 0, totalSignals: 0, activeSignals: 0, totalTrades: 0, articles: 0 });
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminPass, setAdminPass] = useState("");
+  const [activeTab, setActiveTab] = useState<Tab>("signals");
+  const [stats, setStats] = useState({ totalSignals: 0, activeSignals: 0, articles: 0 });
   const [lastUpdated, setLastUpdated] = useState("");
 
-  useEffect(() => {
-    const checkAccess = async () => {
-      const { data: { user } } = await supabase!.auth.getUser();
-      if (!user) { router.push("/auth"); return; }
-
-      const { data: profile } = await supabase!
-        .from("profiles")
-        .select("role, email")
-        .eq("id", user.id)
-        .single();
-
-
-      if (!profile) {
-        await supabase!.from("profiles").upsert({
-          id: user.id,
-          email: user.email,
-          full_name: (user.user_metadata as Record<string, string>)?.full_name ?? "",
-          role: "user",
-        });
-        router.push("/dashboard");
-        return;
-      }
-
-      const role = profile.role as UserRole;
-      if (role !== "admin" && role !== "super_admin") {
-        router.push("/dashboard");
-        return;
-      }
-
-      setUserRole(role);
-      setCurrentUserId(user.id);
-      setAuthChecked(true);
-    };
-    checkAccess();
-  }, [router]);
-
   const fetchStats = useCallback(async () => {
-    const [totalRes, activeRes, bannedRes, sigRes, activeSigRes, tradesRes, artRes] = await Promise.all([
-      supabase!.from("profiles").select("*", { count: "exact", head: true }),
-      supabase!.from("profiles").select("*", { count: "exact", head: true }).eq("is_banned", false),
-      supabase!.from("profiles").select("*", { count: "exact", head: true }).eq("is_banned", true),
+    const [sigRes, activeSigRes, artRes] = await Promise.all([
       supabase!.from("signals").select("*", { count: "exact", head: true }),
       supabase!.from("signals").select("*", { count: "exact", head: true }).eq("status", "ACTIVE"),
-      supabase!.from("portfolio_trades").select("*", { count: "exact", head: true }),
       supabase!.from("articles").select("*", { count: "exact", head: true }),
     ]);
     setStats({
-      totalUsers: totalRes.count ?? 0,
-      activeUsers: activeRes.count ?? 0,
-      bannedUsers: bannedRes.count ?? 0,
       totalSignals: sigRes.count ?? 0,
       activeSignals: activeSigRes.count ?? 0,
-      totalTrades: tradesRes.count ?? 0,
       articles: artRes.count ?? 0,
     });
     setLastUpdated(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
   }, []);
 
-  useEffect(() => { if (authChecked) fetchStats(); }, [authChecked, fetchStats]);
+  useEffect(() => { if (adminUnlocked) fetchStats(); }, [adminUnlocked, fetchStats]);
 
-  if (!authChecked) {
+  if (!adminUnlocked) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
-        <div style={{ width: 32, height: 32, border: "3px solid #1C2236", borderTop: "3px solid #0066FF", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <div style={{
+          background: "#0C1018", border: "1px solid #1C2236",
+          borderRadius: 8, padding: "32px", width: 320, textAlign: "center",
+        }}>
+          <div style={{ fontSize: "2rem", marginBottom: 12 }}>🔐</div>
+          <div style={{ color: "white", fontWeight: 700, marginBottom: 20 }}>Admin Access</div>
+          <input
+            type="password"
+            placeholder="Enter admin password"
+            value={adminPass}
+            onChange={(e) => setAdminPass(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && adminPass === ADMIN_PIN) setAdminUnlocked(true);
+            }}
+            style={{
+              width: "100%", padding: "10px 14px",
+              background: "#080C14", border: "1px solid #1C2236",
+              borderRadius: 6, color: "white", fontSize: "0.9rem",
+              outline: "none", boxSizing: "border-box", marginBottom: 12,
+            }}
+          />
+          <button
+            onClick={() => { if (adminPass === ADMIN_PIN) setAdminUnlocked(true); }}
+            style={{
+              width: "100%", padding: 10, background: "#0066FF",
+              color: "white", border: "none", borderRadius: 6,
+              cursor: "pointer", fontWeight: 600,
+            }}
+          >
+            Unlock
+          </button>
+        </div>
       </div>
     );
   }
 
-  const isSuperAdmin = userRole === "super_admin";
-
   const TABS: { key: Tab; label: string }[] = [
-    { key: "users", label: "Users" },
-    { key: "signals", label: "Signals" },
+    { key: "signals",  label: "Signals" },
     { key: "articles", label: "Articles" },
-    { key: "system", label: "System" },
-    { key: "cron", label: "Cron Jobs" },
+    { key: "system",   label: "System" },
+    { key: "cron",     label: "Cron Jobs" },
     { key: "issuelog", label: "Issue Log" },
   ];
 
   const STAT_CARDS = [
-    { label: "Total Users", value: stats.totalUsers, color: "#0066FF" },
-    { label: "Active Users", value: stats.activeUsers, color: "#00C896" },
-    { label: "Banned", value: stats.bannedUsers, color: "#FF3B5C" },
-    { label: "Total Signals", value: stats.totalSignals, color: "#F59E0B" },
+    { label: "Total Signals",  value: stats.totalSignals,  color: "#F59E0B" },
     { label: "Active Signals", value: stats.activeSignals, color: "#00C896" },
-    { label: "Total Trades", value: stats.totalTrades, color: "#0066FF" },
-    { label: "Articles", value: stats.articles, color: "#8B5CF6" },
+    { label: "Articles",       value: stats.articles,      color: "#8B5CF6" },
   ];
 
   return (
@@ -1421,10 +1097,7 @@ export default function AdminPage() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
             <h1 style={{ color: "#FFFFFF", fontWeight: 700, fontSize: "1.4rem", margin: 0 }}>Admin Panel</h1>
-            {isSuperAdmin
-              ? <span style={{ background: "rgba(255,59,92,0.15)", color: "#FF3B5C", border: "1px solid rgba(255,59,92,0.3)", borderRadius: 3, padding: "2px 10px", fontSize: "0.65rem", fontWeight: 700 }}>SUPER ADMIN</span>
-              : <span style={{ background: "rgba(245,158,11,0.15)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 3, padding: "2px 10px", fontSize: "0.65rem", fontWeight: 700 }}>ADMIN</span>
-            }
+            <span style={{ background: "rgba(245,158,11,0.15)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 3, padding: "2px 10px", fontSize: "0.65rem", fontWeight: 700 }}>ADMIN</span>
           </div>
           <p style={{ color: "#4A5568", fontSize: "0.82rem", margin: 0 }}>Platform management and analytics</p>
         </div>
@@ -1446,11 +1119,10 @@ export default function AdminPage() {
       </div>
 
       <div>
-        {activeTab === "users" && <UsersTab viewerRole={userRole} currentUserId={currentUserId} />}
-        {activeTab === "signals" && <SignalsTab />}
+        {activeTab === "signals"  && <SignalsTab />}
         {activeTab === "articles" && <ArticlesTab />}
-        {activeTab === "system" && <SystemTab />}
-        {activeTab === "cron" && <CronJobsTab />}
+        {activeTab === "system"   && <SystemTab />}
+        {activeTab === "cron"     && <CronJobsTab />}
         {activeTab === "issuelog" && <IssueLogTab />}
       </div>
     </div>

@@ -42,14 +42,14 @@ export default function CTABanner() {
           Join thousands of traders using Blocknate for professional crypto analysis.
         </p>
         <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", marginBottom: 20 }}>
-          <Link href="/auth" style={{
+          <Link href="/dashboard" style={{
             background: "#0066FF", color: "#fff",
             padding: "13px 28px", borderRadius: 4,
             fontWeight: 700, fontSize: "0.92rem",
             textDecoration: "none",
             boxShadow: "0 0 24px rgba(0,102,255,0.35)",
           }}>
-            Sign Up Free
+            Launch App →
           </Link>
           <Link href="/dashboard" style={{
             background: "transparent", color: "#E8ECF4",

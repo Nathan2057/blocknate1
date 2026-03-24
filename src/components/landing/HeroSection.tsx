@@ -234,7 +234,7 @@ export default function HeroSection() {
 
         {/* CTAs */}
         <div style={{ animation: "fadeIn 0.7s ease 0.3s both", display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", marginBottom: 64 }}>
-          <Link href="/auth" className="float-btn" style={{
+          <Link href="/dashboard" className="float-btn" style={{
             background: "#0066FF", color: "#fff",
             padding: "14px 32px", borderRadius: 4,
             fontWeight: 700, fontSize: "0.95rem",
